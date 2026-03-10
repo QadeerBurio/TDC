@@ -5,8 +5,8 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { body, validationResult } = require("express-validator");
 const multer = require("multer");
-// const storage = multer.memoryStorage();
-// const upload = multer({ storage });
+const { storage } = require("../config/cloudinary"); 
+const upload = multer({ storage });
 const User = require("../models/User");
 const University = require("../models/University");
 const Notification = require("../models/Notification");
@@ -17,17 +17,17 @@ const router = express.Router();
 
 // ---------------- MULTER STORAGE ----------------
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    const uniqueName = Date.now() + "-" + file.originalname;
-    cb(null, uniqueName);
-  }
-});
+// const storage = multer.diskStorage({
+//   destination: function (req, file, cb) {
+//     cb(null, "uploads/");
+//   },
+//   filename: function (req, file, cb) {
+//     const uniqueName = Date.now() + "-" + file.originalname;
+//     cb(null, uniqueName);
+//   }
+// });
 
-const upload = multer({ storage });
+// const upload = multer({ storage });
 
 // --- In-memory OTP store (replace with Redis for production) ---
 const otpStore = {};

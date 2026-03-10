@@ -6,18 +6,19 @@ const auth = require("../middleware/auth.middleware");
 const Notification = require("../models/Notification");
 const Slider = require("../models/Slider")
 const router = express.Router();
-
+const { storage } = require("../config/cloudinary"); 
+const upload = multer({ storage });
 
 // MULTER SETUP: For handling image uploads
-const storage = multer.diskStorage({
-  destination: "uploads/offers",
+// const storage = multer.diskStorage({
+//   destination: "uploads/offers",
 
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  },
-});
+//   filename: (req, file, cb) => {
+//     cb(null, Date.now() + "-" + file.originalname);
+//   },
+// });
 
-const upload = multer({ storage });
+// const upload = multer({ storage });
 
 // 1-Brand Management Routes
 

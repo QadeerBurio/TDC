@@ -2,17 +2,18 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
+const { storage } = require("../config/cloudinary"); 
 const Slider = require("../models/Slider"); // Your unified model
 const Notification = require("../models/Notification");
 
 const User = require("../models/User"); // ADDED
 const auth = require("../middleware/auth.middleware"); // ADDED
 
-// --- Storage Configuration ---
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
+// // --- Storage Configuration ---
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => cb(null, "uploads/"),
+//   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+// });
 const upload = multer({ storage });
 
 // --- Routes ---
