@@ -54,7 +54,7 @@ router.post("/", auth, upload.single("image"), async (req, res) => {
 
       isInStore: req.body.isInStore === "true",
 
-      image: req.file?.filename,
+      image: req.file?.path || null, //
 
       brand: user._id,
     });
@@ -107,7 +107,7 @@ router.put("/:offerId", auth, upload.single("image"), async (req, res) => {
     offer.isInStore = req.body.isInStore ?? offer.isInStore;
 
     if (req.file) {
-      offer.image = req.file.filename;
+       offer.image = req.file.path;
     }
 
     await offer.save();

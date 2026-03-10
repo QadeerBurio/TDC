@@ -70,7 +70,9 @@ router.post("/add", upload.single("image"), async (req, res) => {
       title,
       description,
       link,
-      image: `/uploads/${req.file.filename}`,
+      // image: `/uploads/${req.file.filename}`,
+      image: req.file.path,
+      active: true,
     });
 
     await newEntry.save();
@@ -96,15 +98,21 @@ try {
 });
 
 // READ: Get all items (Used by the Combined Slider)
+
 router.get("/all", async (req, res) => {
   try {
     const { type } = req.query;
-    const filter = type ? { type } : {};
-    // Only return active items for the frontend
+    // We only want items where active is explicitly NOT false
+    const filter = { active: { $ne: false } }; 
+    
+    if (type) {
+      filter.type = type;
+    }
+
     const items = await Slider.find(filter).sort({ createdAt: -1 });
     res.json(items);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

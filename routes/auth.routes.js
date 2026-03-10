@@ -354,49 +354,55 @@ router.get("/:id", authMiddleware, async (req, res) => {
 // 2. Update Profile Route
 // ---------------- UPDATE PROFILE ----------------
 
-router.put("/update-profile", authMiddleware, upload.fields([
-  { name: "profileImage", maxCount: 1 },
-  { name: "idCardFront", maxCount: 1 },
-  { name: "idCardBack", maxCount: 1 },
-  { name: "livePicture", maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const { name, phone, email } = req.body;
-    const updateData = { name, phone, email };
+// ---------------- UPDATE PROFILE (Cloudinary version) ----------------
+router.put(
+  "/update-profile",
+  authMiddleware,
+  upload.fields([
+    { name: "profileImage", maxCount: 1 },
+    { name: "idCardFront", maxCount: 1 },
+    { name: "idCardBack", maxCount: 1 },
+    { name: "livePicture", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { name, phone, email } = req.body;
+      const updateData = { name, phone, email };
 
-    // Image processing
-    if (req.files.profileImage) updateData.profileImage = "/uploads/" + req.files.profileImage[0].filename;
-    if (req.files.idCardFront) updateData.idCardFront = "/uploads/" + req.files.idCardFront[0].filename;
-    if (req.files.idCardBack) updateData.idCardBack = "/uploads/" + req.files.idCardBack[0].filename;
-    if (req.files.livePicture) updateData.livePicture = "/uploads/" + req.files.livePicture[0].filename;
+      // --- Cloudinary URLs ---
+      if (req.files.profileImage) updateData.profileImage = req.files.profileImage[0].path;
+      if (req.files.idCardFront) updateData.idCardFront = req.files.idCardFront[0].path;
+      if (req.files.idCardBack) updateData.idCardBack = req.files.idCardBack[0].path;
+      if (req.files.livePicture) updateData.livePicture = req.files.livePicture[0].path;
 
-    // Logic: If all docs uploaded, set status to Pending
-    if (updateData.idCardFront && updateData.idCardBack && updateData.livePicture) {
-      updateData.status = "Pending";
+      // Logic: If all docs uploaded, set status to Pending
+      if (updateData.idCardFront && updateData.idCardBack && updateData.livePicture) {
+        updateData.status = "Pending";
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        req.userId,
+        { $set: updateData },
+        { new: true }
+      ).populate("university");
+
+      // Create Notification for Admin
+      await Notification.create({
+        recipient: null, // System-wide/Admin
+        sender: req.userId,
+        title: "Verification Request",
+        description: `${updatedUser.name} submitted documents for verification.`,
+        type: "System",
+        link: `/admin/students`,
+      });
+
+      res.json(updatedUser);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Update failed" });
     }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      req.userId,
-      { $set: updateData },
-      { new: true }
-    ).populate("university");
-
-    // Create Notification for Admin
-    await Notification.create({
-      recipient: null, // null can represent 'System-wide/Admin' or use a specific Admin ID
-      sender: req.userId,
-      title: "Verification Request",
-      description: `${updatedUser.name} submitted documents for verification.`,
-      type: "System",
-      link: `/admin/students` // Example link for your dashboard
-    });
-
-    res.json(updatedUser);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Update failed" });
   }
-});
+);
 
 // ADMIN ONLY: APPROVE USER
 router.post("/approve-user/:id", authMiddleware, async (req, res) => {
