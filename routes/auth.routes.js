@@ -367,30 +367,20 @@ router.put(
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
-      const updateData = {};
+      const updateData = { name, phone, email };
 
-      if (name) updateData.name = name;
-      if (phone) updateData.phone = phone;
-      if (email) updateData.email = email;
-
-      // Safely handle Cloudinary uploads from Multer
+      // Map uploaded Cloudinary files to the update object
       if (req.files) {
-        if (req.files["profileImage"]?.[0]) updateData.profileImage = req.files["profileImage"][0].path;
-        if (req.files["idCardFront"]?.[0]) updateData.idCardFront = req.files["idCardFront"][0].path;
-        if (req.files["idCardBack"]?.[0]) updateData.idCardBack = req.files["idCardBack"][0].path;
-        if (req.files["livePicture"]?.[0]) updateData.livePicture = req.files["livePicture"][0].path;
+        Object.keys(req.files).forEach((key) => {
+          updateData[key] = req.files[key][0].path; // .path is the Cloudinary URL
+        });
       }
 
       const existingUser = await User.findById(req.userId);
-      if (!existingUser) return res.status(404).json({ error: "User not found" });
-
-      // Verification Logic
-      const hasAllDocs =
-        (updateData.idCardFront || existingUser.idCardFront) &&
-        (updateData.idCardBack || existingUser.idCardBack) &&
-        (updateData.livePicture || existingUser.livePicture);
-
-      if (hasAllDocs) {
+      
+      // Auto-Verification Logic
+      const checkDocs = (field) => updateData[field] || existingUser[field];
+      if (checkDocs("idCardFront") && checkDocs("idCardBack") && checkDocs("livePicture")) {
         updateData.status = "Pending";
       }
 
@@ -400,7 +390,7 @@ router.put(
         { new: true }
       ).populate("university");
 
-      // Notification logic
+      // System Notification
       if (updateData.status === "Pending" && existingUser.status !== "Pending") {
         await Notification.create({
           sender: req.userId,
@@ -410,10 +400,9 @@ router.put(
         });
       }
 
-      res.json({ message: "Profile updated successfully", user: updatedUser });
+      res.json({ message: "Success", user: updatedUser });
     } catch (err) {
-      console.error("CRASH ERROR:", err);
-      res.status(500).json({ error: "Server error", details: err.message });
+      res.status(500).json({ error: err.message });
     }
   }
 );
