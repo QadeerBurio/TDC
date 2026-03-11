@@ -367,16 +367,31 @@ router.put(
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
-      const updateData = { name, phone, email };
+      const user = await User.findById(req.userId);
 
-      // --- Cloudinary URLs ---
-      if (req.files.profileImage) updateData.profileImage = req.files.profileImage[0].path;
-      if (req.files.idCardFront) updateData.idCardFront = req.files.idCardFront[0].path;
-      if (req.files.idCardBack) updateData.idCardBack = req.files.idCardBack[0].path;
-      if (req.files.livePicture) updateData.livePicture = req.files.livePicture[0].path;
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      // Logic: If all docs uploaded, set status to Pending
-      if (updateData.idCardFront && updateData.idCardBack && updateData.livePicture) {
+      // Build update object
+      const updateData = { 
+        name: name || user.name, 
+        phone: phone || user.phone, 
+        email: email || user.email 
+      };
+
+      // Check for new file uploads
+      if (req.files) {
+        if (req.files.profileImage) updateData.profileImage = req.files.profileImage[0].path;
+        if (req.files.idCardFront) updateData.idCardFront = req.files.idCardFront[0].path;
+        if (req.files.idCardBack) updateData.idCardBack = req.files.idCardBack[0].path;
+        if (req.files.livePicture) updateData.livePicture = req.files.livePicture[0].path;
+      }
+
+      // Logic: Update status to Pending if all docs exist and user isn't already Verified
+      const hasAllDocs = (updateData.idCardFront || user.idCardFront) && 
+                         (updateData.idCardBack || user.idCardBack) && 
+                         (updateData.livePicture || user.livePicture);
+
+      if (hasAllDocs && user.status !== "Verified") {
         updateData.status = "Pending";
       }
 
@@ -386,24 +401,24 @@ router.put(
         { new: true }
       ).populate("university");
 
-      // Create Notification for Admin
-      await Notification.create({
-        recipient: null, // System-wide/Admin
-        sender: req.userId,
-        title: "Verification Request",
-        description: `${updatedUser.name} submitted documents for verification.`,
-        type: "System",
-        link: `/admin/students`,
-      });
+      // Optional Notification
+      try {
+        await Notification.create({
+          recipient: null, // For Admin
+          sender: req.userId,
+          title: "Verification Request",
+          description: `${updatedUser.name} submitted documents for verification.`,
+          type: "System",
+        });
+      } catch (e) { console.log("Notification silent fail"); }
 
       res.json(updatedUser);
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Update failed" });
+      console.error("Backend Error:", err);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 );
-
 // ADMIN ONLY: APPROVE USER
 router.post("/approve-user/:id", authMiddleware, async (req, res) => {
   // Add logic here to check if req.userId is an admin
