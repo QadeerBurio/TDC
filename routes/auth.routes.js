@@ -367,58 +367,64 @@ router.put(
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
-      const user = await User.findById(req.userId);
 
-      if (!user) return res.status(404).json({ error: "User not found" });
+      // Start with only fields provided in the request
+      const updateData = {};
+      if (name) updateData.name = name;
+      if (phone) updateData.phone = phone;
+      if (email) updateData.email = email;
 
-      // Build update object
-      const updateData = { 
-        name: name || user.name, 
-        phone: phone || user.phone, 
-        email: email || user.email 
-      };
-
-      // Check for new file uploads
+      // Handle Cloudinary uploads
       if (req.files) {
-        if (req.files.profileImage) updateData.profileImage = req.files.profileImage[0].path;
-        if (req.files.idCardFront) updateData.idCardFront = req.files.idCardFront[0].path;
-        if (req.files.idCardBack) updateData.idCardBack = req.files.idCardBack[0].path;
-        if (req.files.livePicture) updateData.livePicture = req.files.livePicture[0].path;
+        if (req.files.profileImage && req.files.profileImage[0])
+          updateData.profileImage = req.files.profileImage[0].path;
+        if (req.files.idCardFront && req.files.idCardFront[0])
+          updateData.idCardFront = req.files.idCardFront[0].path;
+        if (req.files.idCardBack && req.files.idCardBack[0])
+          updateData.idCardBack = req.files.idCardBack[0].path;
+        if (req.files.livePicture && req.files.livePicture[0])
+          updateData.livePicture = req.files.livePicture[0].path;
       }
 
-      // Logic: Update status to Pending if all docs exist and user isn't already Verified
-      const hasAllDocs = (updateData.idCardFront || user.idCardFront) && 
-                         (updateData.idCardBack || user.idCardBack) && 
-                         (updateData.livePicture || user.livePicture);
+      // Only set status to "Pending" if all three verification docs exist
+      const existingUser = await User.findById(req.userId);
+      const hasAllDocs =
+        (updateData.idCardFront || existingUser.idCardFront) &&
+        (updateData.idCardBack || existingUser.idCardBack) &&
+        (updateData.livePicture || existingUser.livePicture);
 
-      if (hasAllDocs && user.status !== "Verified") {
+      if (hasAllDocs) {
         updateData.status = "Pending";
       }
 
+      // Update user
       const updatedUser = await User.findByIdAndUpdate(
         req.userId,
         { $set: updateData },
         { new: true }
       ).populate("university");
 
-      // Optional Notification
-      try {
+      // Send notification to admin if status is pending
+      if (updateData.status === "Pending") {
         await Notification.create({
-          recipient: null, // For Admin
+          recipient: null, // Admin/system
           sender: req.userId,
           title: "Verification Request",
           description: `${updatedUser.name} submitted documents for verification.`,
           type: "System",
+          link: `/admin/students`,
         });
-      } catch (e) { console.log("Notification silent fail"); }
+      }
 
-      res.json(updatedUser);
+      res.json({ message: "Profile updated successfully", user: updatedUser });
     } catch (err) {
-      console.error("Backend Error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      console.error("Profile Update Error:", err);
+      res.status(500).json({ error: "Profile update failed", details: err.message });
     }
   }
 );
+
+
 // ADMIN ONLY: APPROVE USER
 router.post("/approve-user/:id", authMiddleware, async (req, res) => {
   // Add logic here to check if req.userId is an admin
