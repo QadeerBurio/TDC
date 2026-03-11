@@ -367,27 +367,24 @@ router.put(
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
-
-      // Start with only fields provided in the request
       const updateData = {};
+
       if (name) updateData.name = name;
       if (phone) updateData.phone = phone;
       if (email) updateData.email = email;
 
-      // Handle Cloudinary uploads
+      // Safely handle Cloudinary uploads from Multer
       if (req.files) {
-        if (req.files.profileImage && req.files.profileImage[0])
-          updateData.profileImage = req.files.profileImage[0].path;
-        if (req.files.idCardFront && req.files.idCardFront[0])
-          updateData.idCardFront = req.files.idCardFront[0].path;
-        if (req.files.idCardBack && req.files.idCardBack[0])
-          updateData.idCardBack = req.files.idCardBack[0].path;
-        if (req.files.livePicture && req.files.livePicture[0])
-          updateData.livePicture = req.files.livePicture[0].path;
+        if (req.files["profileImage"]?.[0]) updateData.profileImage = req.files["profileImage"][0].path;
+        if (req.files["idCardFront"]?.[0]) updateData.idCardFront = req.files["idCardFront"][0].path;
+        if (req.files["idCardBack"]?.[0]) updateData.idCardBack = req.files["idCardBack"][0].path;
+        if (req.files["livePicture"]?.[0]) updateData.livePicture = req.files["livePicture"][0].path;
       }
 
-      // Only set status to "Pending" if all three verification docs exist
       const existingUser = await User.findById(req.userId);
+      if (!existingUser) return res.status(404).json({ error: "User not found" });
+
+      // Verification Logic
       const hasAllDocs =
         (updateData.idCardFront || existingUser.idCardFront) &&
         (updateData.idCardBack || existingUser.idCardBack) &&
@@ -397,29 +394,26 @@ router.put(
         updateData.status = "Pending";
       }
 
-      // Update user
       const updatedUser = await User.findByIdAndUpdate(
         req.userId,
         { $set: updateData },
         { new: true }
       ).populate("university");
 
-      // Send notification to admin if status is pending
-      if (updateData.status === "Pending") {
+      // Notification logic
+      if (updateData.status === "Pending" && existingUser.status !== "Pending") {
         await Notification.create({
-          recipient: null, // Admin/system
           sender: req.userId,
           title: "Verification Request",
-          description: `${updatedUser.name} submitted documents for verification.`,
+          description: `${updatedUser.name} submitted documents.`,
           type: "System",
-          link: `/admin/students`,
         });
       }
 
       res.json({ message: "Profile updated successfully", user: updatedUser });
     } catch (err) {
-      console.error("Profile Update Error:", err);
-      res.status(500).json({ error: "Profile update failed", details: err.message });
+      console.error("CRASH ERROR:", err);
+      res.status(500).json({ error: "Server error", details: err.message });
     }
   }
 );
