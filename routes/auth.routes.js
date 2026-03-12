@@ -362,25 +362,31 @@ router.put(
     { name: "profileImage", maxCount: 1 },
     { name: "idCardFront", maxCount: 1 },
     { name: "idCardBack", maxCount: 1 },
-    { name: "livePicture", maxCount: 1 },
+    { name: "livePicture", maxCount: 1 }
   ]),
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
-      const updateData = { name, phone, email };
+      const existingUser = await User.findById(req.userId);
 
-      // Map uploaded Cloudinary files to the update object
+      // Start with text data
+      let updateData = { name, phone, email };
+
+      // Only update image fields if a NEW file was actually uploaded
       if (req.files) {
-        Object.keys(req.files).forEach((key) => {
-          updateData[key] = req.files[key][0].path; // .path is the Cloudinary URL
-        });
+        if (req.files.profileImage) updateData.profileImage = req.files.profileImage[0].path;
+        if (req.files.idCardFront) updateData.idCardFront = req.files.idCardFront[0].path;
+        if (req.files.idCardBack) updateData.idCardBack = req.files.idCardBack[0].path;
+        if (req.files.livePicture) updateData.livePicture = req.files.livePicture[0].path;
       }
 
-      const existingUser = await User.findById(req.userId);
-      
-      // Auto-Verification Logic
-      const checkDocs = (field) => updateData[field] || existingUser[field];
-      if (checkDocs("idCardFront") && checkDocs("idCardBack") && checkDocs("livePicture")) {
+      // Check for "Pending" status: 
+      // It should be pending if they HAVE the files now OR already had them.
+      const hasFront = updateData.idCardFront || existingUser.idCardFront;
+      const hasBack = updateData.idCardBack || existingUser.idCardBack;
+      const hasLive = updateData.livePicture || existingUser.livePicture;
+
+      if (hasFront && hasBack && hasLive) {
         updateData.status = "Pending";
       }
 
@@ -390,19 +396,9 @@ router.put(
         { new: true }
       ).populate("university");
 
-      // System Notification
-      if (updateData.status === "Pending" && existingUser.status !== "Pending") {
-        await Notification.create({
-          sender: req.userId,
-          title: "Verification Request",
-          description: `${updatedUser.name} submitted documents.`,
-          type: "System",
-        });
-      }
-
-      res.json({ message: "Success", user: updatedUser });
+      res.json({ message: "Profile Updated", user: updatedUser });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "Profile Update Failed" });
     }
   }
 );
