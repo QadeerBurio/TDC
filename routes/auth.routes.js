@@ -356,18 +356,18 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
 // ---------------- UPDATE PROFILE (Cloudinary version) ----------------
 // Ensure your route is exactly this:
+// Backend (Express)
 router.put(
   "/update-profile",
   authMiddleware,
-  upload.single("profileImage"), // Handle single image upload
+  upload.single("profileImage"), // This MUST match the string in formData.append
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
-      const updateData = { name, phone, email };
+      let updateData = { name, phone, email };
 
-      // Update image path if a new file is uploaded
       if (req.file) {
-        updateData.profileImage = req.file.path; 
+        updateData.profileImage = req.file.path; // Cloudinary URL
       }
 
       const updatedUser = await User.findByIdAndUpdate(
@@ -378,7 +378,8 @@ router.put(
 
       res.status(200).json({ user: updatedUser });
     } catch (err) {
-      res.status(500).json({ error: "Failed to update profile" });
+      console.error(err);
+      res.status(500).json({ error: "Server failed to save data" });
     }
   }
 );
