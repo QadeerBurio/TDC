@@ -123,13 +123,81 @@ const transporter = nodemailer.createTransport({
 // });
 
 // -------------------- SIGNUP --------------------
+// router.post("/signup", async (req, res) => {
+//   try {
+//     const {
+//       role, email, password, fullName, brandName,
+//       rollNo, isAlumni, phone, universityName, address, instagram
+//     } = req.body;
+
+//     const existingEmail = await User.findOne({ email });
+//     if (existingEmail) return res.status(400).json({ error: "Email already used" });
+
+//     const hashedPassword = await bcrypt.hash(password, 10);
+
+//     let universityId = null;
+//     let name = "";
+
+//     // Role Logic
+//     if (role === "student") {
+//       if (!fullName || !universityName) return res.status(400).json({ error: "Name and university required" });
+//       name = fullName;
+//       let uni = await University.findOne({ name: universityName });
+//       if (!uni) uni = await University.create({ name: universityName });
+//       universityId = uni._id;
+//     } else if (role === "brand") {
+//       if (!brandName) return res.status(400).json({ error: "Brand name required" });
+//       name = brandName;
+//     } else {
+//       name = fullName || "Admin";
+//     }
+
+    
+//     const user = await User.create({
+//       name, email, password: hashedPassword, role, isAlumni: !!isAlumni,
+//       rollNo, phone, university: universityId, address,
+//       instagram, status: role === "admin" ? "Verified" : "Not Verified"
+//     });
+
+//     // --- NOTIFICATION LOGIC FOR STUDENTS ONLY ---
+//     if (role === "student") {
+//       try {
+//         await Notification.create({
+//           recipient: user._id,
+//           title: "Welcome to the Crew! 🚀",
+//           description: `Hey ${name}! Your student account is ready. Explore exclusive deals in Karachi.`,
+//           type: "System",
+//           icon: "party-popper",
+//           readBy: [] // Unread by default
+//         });
+
+//         // Send Welcome Email
+//         transporter.sendMail({
+//           from: `"The Deft Crew" <${process.env.EMAIL_USER}>`,
+//           to: email,
+//           subject: "Welcome to the Crew! 🚀",
+//           html: `<p>Welcome <b>${name}</b>! Your account is now active.</p>`
+//         }).catch(err => console.log("Mail Error:", err.message));
+
+//       } catch (nError) {
+//         console.error("Welcome Notification Error:", nError.message);
+//       }
+//     }
+
+//     res.json({ message: "Signup successful", user });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 router.post("/signup", async (req, res) => {
   try {
     const {
       role, email, password, fullName, brandName,
-      rollNo, isAlumni, phone, universityName, address, instagram
+      rollNo, isAlumni, phone, universityName, address, instagram,
+      referralCodeInput 
     } = req.body;
 
+    // 1. Check if user already exists
     const existingEmail = await User.findOne({ email });
     if (existingEmail) return res.status(400).json({ error: "Email already used" });
 
@@ -138,7 +206,7 @@ router.post("/signup", async (req, res) => {
     let universityId = null;
     let name = "";
 
-    // Role Logic
+    // 2. Role Logic
     if (role === "student") {
       if (!fullName || !universityName) return res.status(400).json({ error: "Name and university required" });
       name = fullName;
@@ -152,25 +220,56 @@ router.post("/signup", async (req, res) => {
       name = fullName || "Admin";
     }
 
+    // 3. Handle Referrer lookup (One time only)
+    let referrer = null;
+    if (referralCodeInput) {
+      // Normalize to uppercase to match generated codes
+      referrer = await User.findOne({ referralCode: referralCodeInput.toUpperCase() });
+    }
+
+    // 4. Create the User (Only ONCE)
     const user = await User.create({
-      name, email, password: hashedPassword, role, isAlumni: !!isAlumni,
-      rollNo, phone, university: universityId, address,
-      instagram, status: role === "admin" ? "Verified" : "Not Verified"
+      name,
+      email,
+      password: hashedPassword,
+      role,
+      isAlumni: !!isAlumni,
+      rollNo,
+      phone,
+      university: universityId,
+      address,
+      instagram,
+      status: role === "admin" ? "Verified" : "Not Verified",
+      referredBy: referrer ? referrer._id : null,
     });
 
-    // --- NOTIFICATION LOGIC FOR STUDENTS ONLY ---
+    // 5. Update Referrer Stats (One time only, using $inc for safety)
+    if (referrer) {
+      const updatedReferrer = await User.findByIdAndUpdate(
+        referrer._id,
+        { $inc: { referralCount: 1 } },
+        { new: true }
+      );
+
+      // Check if they hit the 10-referral milestone
+      if (updatedReferrer.referralCount >= 10 && !updatedReferrer.canApplyForTdcCard) {
+        updatedReferrer.canApplyForTdcCard = true;
+        await updatedReferrer.save();
+      }
+    }
+
+    // 6. Notification Logic for Students
     if (role === "student") {
       try {
         await Notification.create({
           recipient: user._id,
           title: "Welcome to the Crew! 🚀",
-          description: `Hey ${name}! Your student account is ready. Explore exclusive deals in Karachi.`,
+          description: `Hey ${name}! Your student account is ready. Explore exclusive deals.`,
           type: "System",
           icon: "party-popper",
-          readBy: [] // Unread by default
+          readBy: []
         });
 
-        // Send Welcome Email
         transporter.sendMail({
           from: `"The Deft Crew" <${process.env.EMAIL_USER}>`,
           to: email,
@@ -179,12 +278,13 @@ router.post("/signup", async (req, res) => {
         }).catch(err => console.log("Mail Error:", err.message));
 
       } catch (nError) {
-        console.error("Welcome Notification Error:", nError.message);
+        console.error("Notification/Email Error:", nError.message);
       }
     }
 
     res.json({ message: "Signup successful", user });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -352,37 +452,33 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
 
 // 2. Update Profile Route
-// ---------------- UPDATE PROFILE ----------------
 
-// ---------------- UPDATE PROFILE (Cloudinary version) ----------------
-// Ensure your route is exactly this:
-// Backend (Express)
-router.put(
-  "/update-profile",
-  authMiddleware,
-  upload.single("profileImage"), // This MUST match the string in formData.append
-  async (req, res) => {
-    try {
-      const { name, phone, email } = req.body;
-      let updateData = { name, phone, email };
+// router.put(
+//   "/update-profile",
+//   authMiddleware,
+//   upload.single("profileImage"), // This MUST match the string in formData.append
+//   async (req, res) => {
+//     try {
+//       const { name, phone, email } = req.body;
+//       let updateData = { name, phone, email };
 
-      if (req.file) {
-        updateData.profileImage = req.file.path; // Cloudinary URL
-      }
+//       if (req.file) {
+//         updateData.profileImage = req.file.path; // Cloudinary URL
+//       }
 
-      const updatedUser = await User.findByIdAndUpdate(
-        req.userId,
-        { $set: updateData },
-        { new: true }
-      ).populate("university");
+//       const updatedUser = await User.findByIdAndUpdate(
+//         req.userId,
+//         { $set: updateData },
+//         { new: true }
+//       ).populate("university");
 
-      res.status(200).json({ user: updatedUser });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Server failed to save data" });
-    }
-  }
-);
+//       res.status(200).json({ user: updatedUser });
+//     } catch (err) {
+//       console.error(err);
+//       res.status(500).json({ error: "Server failed to save data" });
+//     }
+//   }
+// );
 
 
 // ADMIN ONLY: APPROVE USER
@@ -412,4 +508,19 @@ router.patch("/verify-user/:targetUserId",authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// ---------------- GET LOGGED-IN USER PROFILE (Dynamic) ----------------
+router.get("/profile/me", authMiddleware, async (req, res) => {
+  try {
+    // req.userId comes from the authMiddleware after verifying the JWT
+    const user = await User.findById(req.userId)
+      .select("referralCount referralCode canApplyForTdcCard")
+      .populate("university");
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;

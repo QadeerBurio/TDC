@@ -5,7 +5,7 @@ const path = require("path");
 const { storage } = require("../config/cloudinary"); 
 const Slider = require("../models/Slider"); // Your unified model
 const Notification = require("../models/Notification");
-
+const Job = require("../models/Job");
 const User = require("../models/User"); // ADDED
 const auth = require("../middleware/auth.middleware"); // ADDED
 
@@ -177,5 +177,51 @@ router.patch("/verify-user/:targetUserId", auth, async (req, res) => {
 
     res.json({ message: "User verified and notified." });
   } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Jobs Portal API's
+
+
+// Create a new Job
+router.post("/jobs/add", auth, isAdmin, async (req, res) => {
+    try {
+        const newJob = new Job(req.body);
+        await newJob.save();
+        res.status(201).json({ message: "Job posted successfully", data: newJob });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// Get all jobs (Admin view)
+router.get("/jobs/all", auth, isAdmin, async (req, res) => {
+    try {
+        const jobs = await Job.find().sort({ createdAt: -1 });
+        res.json(jobs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get only active jobs for the mobile app
+router.get("/jobs/public", async (req, res) => {
+    try {
+        const jobs = await Job.find({ active: true }).sort({ createdAt: -1 });
+        res.json(jobs);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ADMIN MANAGEMENT ---
+// Toggle job status (Active/Inactive)
+router.patch("/jobs/toggle/:id", auth, isAdmin, async (req, res) => {
+    try {
+        const job = await Job.findById(req.params.id);
+        job.active = !job.active;
+        await job.save();
+        res.json({ message: "Status updated", active: job.active });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 module.exports = router;
