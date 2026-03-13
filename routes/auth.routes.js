@@ -359,30 +359,15 @@ router.get("/:id", authMiddleware, async (req, res) => {
 router.put(
   "/update-profile",
   authMiddleware,
-  upload.fields([
-    { name: "profileImage", maxCount: 1 },
-    { name: "idCardFront", maxCount: 1 },
-    { name: "idCardBack", maxCount: 1 },
-    { name: "livePicture", maxCount: 1 }
-  ]),
+  upload.single("profileImage"), // Handle single image upload
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
       const updateData = { name, phone, email };
 
-      // req.files is only populated for the fields actually uploaded
-      if (req.files) {
-        Object.keys(req.files).forEach((key) => {
-          updateData[key] = req.files[key][0].path; 
-        });
-      }
-
-      // Logic to set pending only if all docs exist
-      const user = await User.findById(req.userId);
-      const check = (key) => updateData[key] || user[key];
-      
-      if (check('idCardFront') && check('idCardBack') && check('livePicture')) {
-        updateData.status = "Pending";
+      // Update image path if a new file is uploaded
+      if (req.file) {
+        updateData.profileImage = req.file.path; 
       }
 
       const updatedUser = await User.findByIdAndUpdate(
@@ -393,7 +378,7 @@ router.put(
 
       res.status(200).json({ user: updatedUser });
     } catch (err) {
-      res.status(500).json({ error: "Update failed" });
+      res.status(500).json({ error: "Failed to update profile" });
     }
   }
 );
