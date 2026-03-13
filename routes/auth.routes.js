@@ -511,14 +511,16 @@ router.patch("/verify-user/:targetUserId",authMiddleware, async (req, res) => {
 // ---------------- GET LOGGED-IN USER PROFILE (Dynamic) ----------------
 router.get("/profile/me", authMiddleware, async (req, res) => {
   try {
-    // req.userId comes from the authMiddleware after verifying the JWT
-    const user = await User.findById(req.userId)
-      .select("referralCount referralCode canApplyForTdcCard")
-      .populate("university");
+    const user = await User.findById(req.userId).populate("university");
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    if (!user.referralCode && user.role === "student") {
+      await user.save();
+    }
+
     res.json(user);
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
