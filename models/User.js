@@ -78,7 +78,8 @@ const userSchema = new mongoose.Schema(
   // Referral System
   referralCode: { 
     type: String, 
-    unique: true 
+    unique: true,
+    sparse: true
   }, 
 
   referredBy: { 
@@ -101,25 +102,30 @@ const userSchema = new mongoose.Schema(
 );
 
 
-// Logic to generate a truly unique 6-character code
-userSchema.pre('save', async function(next) {
-  // Only generate for students who don't have one yet
+userSchema.pre('save', async function() {
+  // 1. Only generate if the code doesn't exist and the user is a student
   if (!this.referralCode && this.role === 'student') {
     let isUnique = false;
     let newCode = "";
     
+    // 2. Loop until a unique code is found
     while (!isUnique) {
       // Generates a random 6-character alphanumeric string
       newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
-      // Verify uniqueness in the DB
-      const existing = await mongoose.models.User.findOne({ referralCode: newCode });
-      if (!existing) isUnique = true;
+      // 3. Verify uniqueness in the DB
+      // Use this.constructor to refer to the User model within middleware
+      const existing = await this.constructor.findOne({ referralCode: newCode });
+      
+      if (!existing) {
+        isUnique = true;
+      }
     }
     
     this.referralCode = newCode;
   }
-  next();
+  // ✅ In async hooks, you don't need next(). 
+  // Just returning (or reaching the end) tells Mongoose to proceed.
 });
 
 module.exports = mongoose.model("User", userSchema);
