@@ -453,32 +453,30 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
 // 2. Update Profile Route
 
-// router.put(
-//   "/update-profile",
-//   authMiddleware,
-//   upload.single("profileImage"), // This MUST match the string in formData.append
-//   async (req, res) => {
-//     try {
-//       const { name, phone, email } = req.body;
-//       let updateData = { name, phone, email };
+router.put(
+  "/update-profile",
+  authMiddleware,
+  upload.single("profileImage"),
+  async (req, res) => {
 
-//       if (req.file) {
-//         updateData.profileImage = req.file.path; // Cloudinary URL
-//       }
+    const { name, phone, email } = req.body;
 
-//       const updatedUser = await User.findByIdAndUpdate(
-//         req.userId,
-//         { $set: updateData },
-//         { new: true }
-//       ).populate("university");
+    let updateData = { name, phone, email };
 
-//       res.status(200).json({ user: updatedUser });
-//     } catch (err) {
-//       console.error(err);
-//       res.status(500).json({ error: "Server failed to save data" });
-//     }
-//   }
-// );
+    if (req.file) {
+      updateData.profileImage = req.file.path;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: updateData },
+      { new: true }
+    ).populate("university");
+
+    res.status(200).json({ user: updatedUser });
+
+  }
+);
 
 
 // ADMIN ONLY: APPROVE USER
@@ -530,36 +528,5 @@ router.get("/profile/me", authMiddleware, async (req, res) => {
 
 // Add this near your other routes in auth.js
 // Verification route for students
-router.put(
-  "/verify-student-docs",
-  authMiddleware,
-  upload.fields([
-    { name: "profileImage", maxCount: 1 },
-    { name: "cnicFront", maxCount: 1 },
-    { name: "cnicBack", maxCount: 1 },
-    { name: "studentIdCard", maxCount: 1 },
-  ]),
-  async (req, res) => {
-    try {
-      const updateData = {
-        // req.files contains the Cloudinary URLs from multer
-        profileImage: req.files["profileImage"]?.[0]?.path,
-        cnicFront: req.files["cnicFront"]?.[0]?.path,
-        cnicBack: req.files["cnicBack"]?.[0]?.path,
-        studentIdCard: req.files["studentIdCard"]?.[0]?.path,
-        status: "Pending Verification", 
-      };
 
-      const user = await User.findByIdAndUpdate(
-        req.userId,
-        { $set: updateData },
-        { new: true }
-      );
-
-      res.json({ message: "Documents submitted for review", user });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to upload documents." });
-    }
-  }
-);
 module.exports = router;

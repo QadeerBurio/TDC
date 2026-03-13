@@ -38,17 +38,11 @@ const userSchema = new mongoose.Schema(
     type: Date 
   },
 
-  verificationDocs: {
-  profileImage: String,
-  cnicFront: String,
-  cnicBack: String,
-  studentIdCard: String,
-},
-verificationStatus: {
-  type: String,
-  enum: ['Pending', 'Verified', 'Rejected'],
-  default: 'Pending'
-},
+  status: {
+    type: String,
+    enum: ["Not Verified", "Pending", "Verified"],
+    default: "Not Verified"
+  },
 
   profileImage: { 
     type: String, 
