@@ -525,4 +525,41 @@ router.get("/profile/me", authMiddleware, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+// Add this near your other routes in auth.js
+// Verification route for students
+router.put(
+  "/verify-student-docs",
+  authMiddleware,
+  upload.fields([
+    { name: "profileImage", maxCount: 1 },
+    { name: "cnicFront", maxCount: 1 },
+    { name: "cnicBack", maxCount: 1 },
+    { name: "studentIdCard", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const updateData = {
+        // req.files contains the Cloudinary URLs from multer
+        profileImage: req.files["profileImage"]?.[0]?.path,
+        cnicFront: req.files["cnicFront"]?.[0]?.path,
+        cnicBack: req.files["cnicBack"]?.[0]?.path,
+        studentIdCard: req.files["studentIdCard"]?.[0]?.path,
+        status: "Pending Verification", 
+      };
+
+      const user = await User.findByIdAndUpdate(
+        req.userId,
+        { $set: updateData },
+        { new: true }
+      );
+
+      res.json({ message: "Documents submitted for review", user });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to upload documents." });
+    }
+  }
+);
 module.exports = router;
