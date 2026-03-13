@@ -355,6 +355,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 // ---------------- UPDATE PROFILE ----------------
 
 // ---------------- UPDATE PROFILE (Cloudinary version) ----------------
+// Ensure your route is exactly this:
 router.put(
   "/update-profile",
   authMiddleware,
@@ -367,26 +368,20 @@ router.put(
   async (req, res) => {
     try {
       const { name, phone, email } = req.body;
-      const existingUser = await User.findById(req.userId);
+      const updateData = { name, phone, email };
 
-      // Start with text data
-      let updateData = { name, phone, email };
-
-      // Only update image fields if a NEW file was actually uploaded
+      // req.files is only populated for the fields actually uploaded
       if (req.files) {
-        if (req.files.profileImage) updateData.profileImage = req.files.profileImage[0].path;
-        if (req.files.idCardFront) updateData.idCardFront = req.files.idCardFront[0].path;
-        if (req.files.idCardBack) updateData.idCardBack = req.files.idCardBack[0].path;
-        if (req.files.livePicture) updateData.livePicture = req.files.livePicture[0].path;
+        Object.keys(req.files).forEach((key) => {
+          updateData[key] = req.files[key][0].path; 
+        });
       }
 
-      // Check for "Pending" status: 
-      // It should be pending if they HAVE the files now OR already had them.
-      const hasFront = updateData.idCardFront || existingUser.idCardFront;
-      const hasBack = updateData.idCardBack || existingUser.idCardBack;
-      const hasLive = updateData.livePicture || existingUser.livePicture;
-
-      if (hasFront && hasBack && hasLive) {
+      // Logic to set pending only if all docs exist
+      const user = await User.findById(req.userId);
+      const check = (key) => updateData[key] || user[key];
+      
+      if (check('idCardFront') && check('idCardBack') && check('livePicture')) {
         updateData.status = "Pending";
       }
 
@@ -396,9 +391,9 @@ router.put(
         { new: true }
       ).populate("university");
 
-      res.json({ message: "Profile Updated", user: updatedUser });
+      res.status(200).json({ user: updatedUser });
     } catch (err) {
-      res.status(500).json({ error: "Profile Update Failed" });
+      res.status(500).json({ error: "Update failed" });
     }
   }
 );

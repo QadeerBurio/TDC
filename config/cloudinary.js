@@ -12,8 +12,9 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: "uploads",
-    allowed_formats: ["jpg", "png", "jpeg", "mp4"],
+    folder: "tdc_uploads",
+    allowed_formats: ["jpg", "png", "jpeg"],
+    transformation: [{ width: 1000, crop: "limit", quality: "auto" }], // Auto-optimization
   },
 });
 
