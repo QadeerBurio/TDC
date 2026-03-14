@@ -458,25 +458,47 @@ router.put(
   authMiddleware,
   upload.single("profileImage"),
   async (req, res) => {
+    try {
 
-    const { name, phone, email } = req.body;
+      const { name, phone, email } = req.body;
 
-    let updateData = { name, phone, email };
+      let updateData = {
+        name,
+        phone,
+        email
+      };
 
-    if (req.file) {
-      updateData.profileImage = req.file.path;
+      // check image
+      if (req.file) {
+        console.log("Uploaded File:", req.file);
+        updateData.profileImage = req.file.path;
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        req.userId,
+        { $set: updateData },
+        { new: true }
+      ).populate("university");
+
+      res.json({
+        success: true,
+        user: updatedUser
+      });
+
+    } catch (error) {
+
+      console.log("PROFILE UPDATE ERROR:", error);
+
+      res.status(500).json({
+        message: "Profile update failed",
+        error: error.message
+      });
+
     }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      req.userId,
-      { $set: updateData },
-      { new: true }
-    ).populate("university");
-
-    res.status(200).json({ user: updatedUser });
-
   }
 );
+
+
 
 
 // ADMIN ONLY: APPROVE USER
